@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.2/.schema/devbox.schema.json",
+  "packages": [
+    "ruby@3.4"
+  ],
+  "env": {
+    "GEM_HOME":   "$PWD/.devbox/vendor/gems",
+    "BUNDLE_PATH": "$PWD/.devbox/vendor/bundle",
+    "PATH":       "$PWD/.devbox/vendor/gems/bin:$PWD/bin:$PATH"
+  },
+  "shell": {
+    "init_hook": [
+      "mkdir -p .devbox/vendor/gems .devbox/vendor/bundle",
+      "gem install --no-document bundler >/dev/null 2>&1 || true",
+      "echo 'mdless devbox ready. Run `devbox run setup` if this is your first time.'"
+    ],
+    "scripts": {
+      "setup":   "bundle install",
+      "build":   "bundle exec rake clobber package",
+      "install": "bundle exec rake install",
+      "test":    "bundle exec rake test",
+      "features": "bundle exec rake features",
+      "mdless":  "bundle exec bin/mdless \"$@\"",
+      "version": "bundle exec rake ver",
+      "clean":   "bundle exec rake clobber && rm -rf .devbox/vendor Gemfile.lock"
+    }
+  }
+}
