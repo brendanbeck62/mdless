@@ -76,6 +76,8 @@ The pager used is determined by system configuration in this order of preference
     -v, --version                    Display version number
     -w, --width=COLUMNS              Column width to format for (default: terminal width)
         --[no-]autolink              Convert bare URLs and emails to <links>
+        --[no-]enable-spinner        Show a progress spinner while processing (default on).
+                                     Disable to avoid clearing tmux OSC 133 markers on the output-start line.
         --[no-]inline_footnotes      Display footnotes immediately after the paragraph that references them
         --[no-]intra-emphasis        Parse emphasis inside of words (e.g. Mark_down_)
         --[no-]lax-spacing           Allow lax spacing
@@ -98,6 +100,7 @@ The first time mdless is run, a config file will be written to `~/.config/mdless
 :at_tags: true
 :autolink: true
 :color: true
+:enable_spinner: true
 :inline_footnotes: true
 :intra_emphasis: false
 :lax_spacing: true
@@ -117,6 +120,7 @@ The first time mdless is run, a config file will be written to `~/.config/mdless
 - The `:at_tags` setting determines whether @tags will be highlighted. If this is enabled, colors will be pulled from the `at_tags` settings in the theme.
 - `:autolink` will determine whether bare urls are turned into `<self-linking>` urls.
 - `:color` will enable or disable all coloring.
+- `:enable_spinner` controls whether a progress spinner is shown while a file is being processed. When `true` (the default), the spinner is animated on stderr and cleared with `\e[2K` when done. That clear-line sequence wipes the OSC 133 "command output start" marker on the same line in tmux, which breaks `previous-prompt -o` (e.g. tmux bindings that jump to the top of a command's output). Set to `false` if you rely on those bindings.
 - `:inline_footnotes` will determine the placement of footnotes. If true, footnotes will be added directly after the element that refers to them.
 - `:intra_emphasis` will determine whether words containing underscores are rendered as italics or not.
 - `:lax_spacing` determines whether a blank line is required around HTML elements.

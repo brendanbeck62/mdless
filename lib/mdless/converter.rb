@@ -28,6 +28,13 @@ module CLIMarkdown
           MDLess.options[:color] = c
         end
 
+        default(:enable_spinner, true)
+        opts.on("--[no-]enable-spinner",
+                "Show a progress spinner while processing (default on). " \
+                "Disable to avoid clearing tmux OSC 133 markers on the output-start line.") do |opt|
+          MDLess.options[:enable_spinner] = opt
+        end
+
         opts.on("-d", "--debug LEVEL", "Level of debug messages to output (1-4, 4 to see all messages)") do |level|
           if level.to_i.positive? && level.to_i < 5
             MDLess.log.level = 5 - level.to_i
@@ -314,20 +321,62 @@ module CLIMarkdown
         files = args.delete_if { |f| !File.exist?(f) }
         @multifile = files.count > 1
         files.each do |file|
-          MDLess.log.info(%(Processing "#{file}"))
-          @output << "#{c(%i[b green])}[#{c(%i[b white])}#{file}#{c(%i[b green])}]#{xc}\n\n" if @multifile
-          MDLess.file = file
+          process_file = lambda do
+            MDLess.log.info(%(Processing "#{file}"))
+            @output << "#{c(%i[b green])}[#{c(%i[b white])}#{file}#{c(%i[b green])}]#{xc}\n\n" if @multifile
+            MDLess.file = file
 
-          begin
-            input = IO.read(file).force_encoding("utf-8")
-          rescue StandardError
-            input = IO.read(file)
+            begin
+              input = IO.read(file).force_encoding("utf-8")
+            rescue StandardError
+              input = IO.read(file)
+            end
+            raise "Nil input" if input.nil?
+
+            input.scrub!
+            input.gsub!(/\r?\n/, "\n")
+            @headers = headers(input)
+            if MDLess.options[:taskpaper] == :auto
+              MDLess.options[:taskpaper] = if CLIMarkdown::TaskPaper.is_taskpaper?(input)
+                  MDLess.log.info("TaskPaper detected")
+                  true
+                else
+                  false
+                end
+            end
+
+            if MDLess.options[:list]
+              @output << if MDLess.options[:taskpaper]
+                CLIMarkdown::TaskPaper.list_projects(input)
+              else
+                list_headers(input)
+              end
+            elsif MDLess.options[:taskpaper]
+              input = input.color_meta(MDLess.cols)
+              input = CLIMarkdown::TaskPaper.highlight(input)
+              @output << input.highlight_tags
+            else
+              @output << markdown.render(input)
+            end
+            @output << "\n\n"
           end
-          raise "Nil input" if input.nil?
 
-          input.scrub!
+          if MDLess.options[:enable_spinner]
+            spinner = TTY::Spinner.new("[:spinner] Processing #{File.basename(file)}...", format: :dots_3, clear: true)
+            spinner.run { |_s| process_file.call }
+          else
+            process_file.call
+          end
+        end
+
+        printout
+      elsif !$stdin.isatty
+        MDLess.log.info(%(Processing STDIN))
+        process_stdin = lambda do
+          MDLess.file = nil
+          input = $stdin.read.scrub
           input.gsub!(/\r?\n/, "\n")
-          @headers = headers(input)
+
           if MDLess.options[:taskpaper] == :auto
             MDLess.options[:taskpaper] = if CLIMarkdown::TaskPaper.is_taskpaper?(input)
                 MDLess.log.info("TaskPaper detected")
@@ -336,55 +385,31 @@ module CLIMarkdown
                 false
               end
           end
+          @headers = headers(input)
 
           if MDLess.options[:list]
-            @output << if MDLess.options[:taskpaper]
-              CLIMarkdown::TaskPaper.list_projects(input)
+            if MDLess.options[:taskpaper]
+              puts CLIMarkdown::TaskPaper.list_projects(input)
             else
-              list_headers(input)
+              puts list_headers(input)
             end
-          elsif MDLess.options[:taskpaper]
-            input = input.color_meta(MDLess.cols)
-            input = CLIMarkdown::TaskPaper.highlight(input)
-            @output << input.highlight_tags
+            Process.exit 0
           else
-            @output << markdown.render(input)
+            if MDLess.options[:taskpaper]
+              input = input.color_meta(MDLess.cols)
+              input = CLIMarkdown::TaskPaper.highlight(input)
+              @output = input.highlight_tags
+            else
+              @output = markdown.render(input)
+            end
           end
-          @output << "\n\n"
         end
 
-        printout
-      elsif !$stdin.isatty
-        MDLess.log.info(%(Processing STDIN))
-        MDLess.file = nil
-        input = $stdin.read.scrub
-        input.gsub!(/\r?\n/, "\n")
-
-        if MDLess.options[:taskpaper] == :auto
-          MDLess.options[:taskpaper] = if CLIMarkdown::TaskPaper.is_taskpaper?(input)
-              MDLess.log.info("TaskPaper detected")
-              true
-            else
-              false
-            end
-        end
-        @headers = headers(input)
-
-        if MDLess.options[:list]
-          if MDLess.options[:taskpaper]
-            puts CLIMarkdown::TaskPaper.list_projects(input)
-          else
-            puts list_headers(input)
-          end
-          Process.exit 0
+        if MDLess.options[:enable_spinner]
+          spinner = TTY::Spinner.new("[:spinner] Processing ...", format: :dots_3, clear: true)
+          spinner.run { |_s| process_stdin.call }
         else
-          if MDLess.options[:taskpaper]
-            input = input.color_meta(MDLess.cols)
-            input = CLIMarkdown::TaskPaper.highlight(input)
-            @output = input.highlight_tags
-          else
-            @output = markdown.render(input)
-          end
+          process_stdin.call
         end
         printout
       else
