@@ -314,57 +314,20 @@ module CLIMarkdown
         files = args.delete_if { |f| !File.exist?(f) }
         @multifile = files.count > 1
         files.each do |file|
-          spinner = TTY::Spinner.new("[:spinner] Processing #{File.basename(file)}...", format: :dots_3, clear: true)
-          spinner.run do |spinner|
-            MDLess.log.info(%(Processing "#{file}"))
-            @output << "#{c(%i[b green])}[#{c(%i[b white])}#{file}#{c(%i[b green])}]#{xc}\n\n" if @multifile
-            MDLess.file = file
+          MDLess.log.info(%(Processing "#{file}"))
+          @output << "#{c(%i[b green])}[#{c(%i[b white])}#{file}#{c(%i[b green])}]#{xc}\n\n" if @multifile
+          MDLess.file = file
 
-            begin
-              input = IO.read(file).force_encoding("utf-8")
-            rescue StandardError
-              input = IO.read(file)
-            end
-            raise "Nil input" if input.nil?
-
-            input.scrub!
-            input.gsub!(/\r?\n/, "\n")
-            @headers = headers(input)
-            if MDLess.options[:taskpaper] == :auto
-              MDLess.options[:taskpaper] = if CLIMarkdown::TaskPaper.is_taskpaper?(input)
-                  MDLess.log.info("TaskPaper detected")
-                  true
-                else
-                  false
-                end
-            end
-
-            if MDLess.options[:list]
-              @output << if MDLess.options[:taskpaper]
-                CLIMarkdown::TaskPaper.list_projects(input)
-              else
-                list_headers(input)
-              end
-            elsif MDLess.options[:taskpaper]
-              input = input.color_meta(MDLess.cols)
-              input = CLIMarkdown::TaskPaper.highlight(input)
-              @output << input.highlight_tags
-            else
-              @output << markdown.render(input)
-            end
-            @output << "\n\n"
+          begin
+            input = IO.read(file).force_encoding("utf-8")
+          rescue StandardError
+            input = IO.read(file)
           end
-        end
+          raise "Nil input" if input.nil?
 
-        printout
-      elsif !$stdin.isatty
-        MDLess.log.info(%(Processing STDIN))
-        spinner = TTY::Spinner.new("[:spinner] Processing ...", format: :dots_3, clear: true)
-        spinner.run do |spinner|
-          MDLess.file = nil
-          input = $stdin.read.scrub
+          input.scrub!
           input.gsub!(/\r?\n/, "\n")
-
+          @headers = headers(input)
           if MDLess.options[:taskpaper] == :auto
             MDLess.options[:taskpaper] = if CLIMarkdown::TaskPaper.is_taskpaper?(input)
                 MDLess.log.info("TaskPaper detected")
@@ -373,23 +336,54 @@ module CLIMarkdown
                 false
               end
           end
-          @headers = headers(input)
 
           if MDLess.options[:list]
-            if MDLess.options[:taskpaper]
-              puts CLIMarkdown::TaskPaper.list_projects(input)
+            @output << if MDLess.options[:taskpaper]
+              CLIMarkdown::TaskPaper.list_projects(input)
             else
-              puts list_headers(input)
+              list_headers(input)
             end
-            Process.exit 0
+          elsif MDLess.options[:taskpaper]
+            input = input.color_meta(MDLess.cols)
+            input = CLIMarkdown::TaskPaper.highlight(input)
+            @output << input.highlight_tags
           else
-            if MDLess.options[:taskpaper]
-              input = input.color_meta(MDLess.cols)
-              input = CLIMarkdown::TaskPaper.highlight(input)
-              @output = input.highlight_tags
+            @output << markdown.render(input)
+          end
+          @output << "\n\n"
+        end
+
+        printout
+      elsif !$stdin.isatty
+        MDLess.log.info(%(Processing STDIN))
+        MDLess.file = nil
+        input = $stdin.read.scrub
+        input.gsub!(/\r?\n/, "\n")
+
+        if MDLess.options[:taskpaper] == :auto
+          MDLess.options[:taskpaper] = if CLIMarkdown::TaskPaper.is_taskpaper?(input)
+              MDLess.log.info("TaskPaper detected")
+              true
             else
-              @output = markdown.render(input)
+              false
             end
+        end
+        @headers = headers(input)
+
+        if MDLess.options[:list]
+          if MDLess.options[:taskpaper]
+            puts CLIMarkdown::TaskPaper.list_projects(input)
+          else
+            puts list_headers(input)
+          end
+          Process.exit 0
+        else
+          if MDLess.options[:taskpaper]
+            input = input.color_meta(MDLess.cols)
+            input = CLIMarkdown::TaskPaper.highlight(input)
+            @output = input.highlight_tags
+          else
+            @output = markdown.render(input)
           end
         end
         printout
