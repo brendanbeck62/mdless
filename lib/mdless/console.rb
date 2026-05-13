@@ -65,8 +65,9 @@ module Redcarpet
         # rest of the line (terminals with bce extend bg to the right edge).
         # \e[0;37m embeds the same `0` reset parameter alongside a fg set, so
         # it survives clean_escapes and still clears the bg before the newline.
+        pad_char = MDLess.options[:nbsp_padding] ? "\u00A0" : ' '
         input.split(/\n/).map do |line|
-          tail = line.uncolor.length < width ? "\u00A0" * (width - line.uncolor.length) : ''
+          tail = line.uncolor.length < width ? pad_char * (width - line.uncolor.length) : ''
           "#{x}#{line}#{tail}#{xc}"
         end.join("\n")
       end
